@@ -1520,8 +1520,11 @@ InviteClientContext.prototype = {
               (this.earlyDialogs[id].pracked[this.earlyDialogs[id].pracked.length-1] >= response.getHeader('rseq') && this.earlyDialogs[id].pracked.length > 0)) {
             return;
           }
-          // TODO: This may be broken. It may have to be on the early dialog
-          this.sessionDescriptionHandler = this.sessionDescriptionHandlerFactory(this, this.sessionDescriptionHandlerFactoryOptions);
+
+          if (!this.sessionDescriptionHandler) {
+            this.sessionDescriptionHandler = this.sessionDescriptionHandlerFactory(this, this.sessionDescriptionHandlerFactoryOptions);
+          }
+
           if (!this.sessionDescriptionHandler.hasDescription(response.getHeader('Content-Type'))) {
             extraHeaders.push('RAck: ' + response.getHeader('rseq') + ' ' + response.getHeader('cseq'));
             this.earlyDialogs[id].pracked.push(response.getHeader('rseq'));
@@ -1589,14 +1592,10 @@ InviteClientContext.prototype = {
             });
           }
         } else {
-          if (this.hasOffer) {
-            if (!this.createDialog(response, 'UAC')) {
-              break;
-            }
+          if (this.hasOffer && response.status_code === 183) {
             this.hasAnswer = false;
             this.sessionDescriptionHandler.setDescription(response.body, this.sessionDescriptionHandlerOptions, this.modifiers)
               .then(function onSuccess() {
-                extraHeaders.push('RAck: ' + response.getHeader('rseq') + ' ' + response.getHeader('cseq'));
                 session.status = C.STATUS_EARLY_MEDIA;
                 session.emit('progress', response);
               }, function onFailure(e) {
@@ -1604,9 +1603,8 @@ InviteClientContext.prototype = {
                 session.acceptAndTerminate(response, 488, 'Not Acceptable Here');
                 session.failed(response, SIP.C.causes.BAD_MEDIA_DESCRIPTION);
               });
-          } else {
-            this.emit('progress', response);
           }
+          this.emit('progress', response);
         }
         break;
       case /^2[0-9]{2}$/.test(response.status_code):
